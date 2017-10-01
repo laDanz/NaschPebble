@@ -15,7 +15,9 @@ var clay = new Clay(clayConfig, null, {autoHandleEvents: false});
 
 var NASCHPUNKTE_URL="https://naschpunkte.appspot.com/";
 var USER_ID = Settings.option('user_id') || undefined;
+var ACTIVITIES = Settings.option('activities') || undefined;
 
+// clay settings
 Pebble.addEventListener('showConfiguration', function(e) {
   Pebble.openURL(clay.generateUrl());
 });
@@ -29,6 +31,40 @@ Pebble.addEventListener('webviewclosed', function(e) {
   Settings.option(dict);
 });
 
+// UIs
+var main = new UI.Card({
+  title: 'NaschPebble',
+  //icon: 'mainIcon',
+  subtitle: 'verfügbare Punkte:',
+  body: 'hole...',
+  subtitleColor: 'indigo', // Named colors
+  bodyColor: '#9a0036' // Hex colors
+});
+
+var activityMenu = new UI.Menu({
+    sections: [{
+      items: [{
+        title: 'Activities',
+        subtitle: 'hole...'
+      }]
+    }]
+  });
+  activityMenu.on('select', function(e) {
+    console.log('Selected item #' + e.itemIndex + ' of section #' + e.sectionIndex);
+    console.log('The item is titled "' + e.item.title + '"');
+  });
+
+function updateActivityMenu(){
+  var data = Settings.option('activities');
+    var items = [];
+    for (var i = 0; i < data.length; i++){
+      var obj = data[i];
+      items.push({title: obj.name, subtitle: obj.punkte + "pkt pro " + obj.defaultValue + " " + obj.einheit});
+    }
+    activityMenu.items(0, items);
+}
+
+// ajax requests
 function login(){
   ajax({ url: NASCHPUNKTE_URL+'login/?csrf'},
     function(data, code, request) {
@@ -51,15 +87,30 @@ function login(){
   );
 }
 
-
-var main = new UI.Card({
-  title: 'NaschPebble',
-  //icon: 'mainIcon',
-  subtitle: 'verfügbare Punkte:',
-  body: 'hole...',
-  subtitleColor: 'indigo', // Named colors
-  bodyColor: '#9a0036' // Hex colors
-});
+function updateActivities() {
+  if (USER_ID === undefined){
+    login();
+  }
+  ajax({ url: NASCHPUNKTE_URL+'rest/lsa/?user_id='+USER_ID, type:"json"},
+  function(data) {
+    console.log('updateActivitiesCall successful!' + data);
+    Settings.option('activities', data);
+    updateActivityMenu();
+  },
+  function(data, code) {
+    console.log('Error getting activities: ' + code + ": " + data);
+    var title="Fehler!";
+    var subtitle="";
+    if (code == 401){
+      subtitle="Nicht angemeldet!";
+    }
+    activityMenu.items(0, [{title: title, subtitle: subtitle}]);
+  }
+  );
+}
+if (ACTIVITIES === undefined){
+  updateActivities();
+}
 
 function updatePunkte() {
   if (USER_ID === undefined){
@@ -71,40 +122,21 @@ function updatePunkte() {
     main.body(data);
   },
   function(data, code) {
-    console.log('Error logging in: ' + code + ": " + data);
+    console.log('Error getting punkte: ' + code + ": " + data);
     main.body("Fehler!");
     if (code == 401){
       main.body("Nicht angemeldet!");
     }
   }
-      );
+  );
 }
-
-main.show();
 updatePunkte();
 
+main.show();
+
 main.on('click', 'up', function(e) {
-  var menu = new UI.Menu({
-    sections: [{
-      items: [{
-        title: 'Pebble.js',
-        icon: 'images/menu_icon.png',
-        subtitle: 'Can do Menus'
-      }, {
-        title: 'Second Item',
-        subtitle: 'Subtitle Text'
-      }, {
-        title: 'Third Item',
-      }, {
-        title: 'Fourth Item',
-      }]
-    }]
-  });
-  menu.on('select', function(e) {
-    console.log('Selected item #' + e.itemIndex + ' of section #' + e.sectionIndex);
-    console.log('The item is titled "' + e.item.title + '"');
-  });
-  menu.show();
+  updateActivityMenu();
+  activityMenu.show();
 });
 
 main.on('click', 'select', function(e) {
