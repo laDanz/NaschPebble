@@ -14,7 +14,7 @@ var clay = new Clay(clayConfig, null, {autoHandleEvents: false});
 
 
 var NASCHPUNKTE_URL="https://naschpunkte.appspot.com/";
-var LOGGED_IN = false;
+var USER_ID = Settings.option('user_id') || undefined;
 
 Pebble.addEventListener('showConfiguration', function(e) {
   Pebble.openURL(clay.generateUrl());
@@ -35,10 +35,12 @@ function login(){
       console.log('Logging in with ' + data + '...');
       var loginData = { username: Settings.option('username'), password: Settings.option('password'), csrfmiddlewaretoken: data};
       
-      ajax({ url: NASCHPUNKTE_URL+'login/', method:"post", data:loginData},
-        function(data) {
+      ajax({ url: NASCHPUNKTE_URL+'login/', method:"post", data:loginData, type:"json"},
+        function(data, code, req) {
           console.log('Logged in!');
-          LOGGED_IN=true;
+          USER_ID=req.getResponseHeader("user_id");
+          Settings.option('user_id', USER_ID);
+          console.log("UserId: " + USER_ID);
           updatePunkte();
         },
         function(data, code) {
@@ -48,9 +50,7 @@ function login(){
     }
   );
 }
-if (! LOGGED_IN){
-  login();
-}
+
 
 var main = new UI.Card({
   title: 'NaschPebble',
@@ -62,7 +62,10 @@ var main = new UI.Card({
 });
 
 function updatePunkte() {
-  ajax({ url: NASCHPUNKTE_URL+'rest/lsp'},
+  if (USER_ID === undefined){
+    login();
+  }
+  ajax({ url: NASCHPUNKTE_URL+'rest/lsp/?user_id='+USER_ID},
   function(data) {
     console.log('updatePunkteCall successful!');
     main.body(data);
@@ -78,6 +81,7 @@ function updatePunkte() {
 }
 
 main.show();
+updatePunkte();
 
 main.on('click', 'up', function(e) {
   var menu = new UI.Menu({
